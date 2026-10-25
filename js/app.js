@@ -91,6 +91,36 @@
     },
   };
 
+  // Einrichtung der Handy-Version: Zugangsschlüssel eingeben
+  J.renderGithubSetup = (main) => {
+    const m = { owner: (J.gh.cfg && J.gh.cfg.owner) || J.gh.defaultOwner(), repo: (J.gh.cfg && J.gh.cfg.repo) || 'trading-journal', token: '' };
+    const out = h('div');
+    document.getElementById('nav').append(h('div.muted.small.pad', 'Bitte zuerst verbinden.'));
+    async function connect() {
+      m.owner = m.owner.trim(); m.repo = m.repo.trim(); m.token = m.token.trim();
+      if (!m.owner || !m.repo || !m.token) return J.toast('Bitte alle Felder ausfüllen', 'err');
+      J.gh.saveCfg({ owner: m.owner, repo: m.repo, token: m.token, branch: 'main' });
+      out.textContent = 'Verbinde …';
+      try { await J.gh.test(); location.reload(); }
+      catch (e) { J.gh.logout(); out.textContent = 'Das hat nicht geklappt: ' + e.message; }
+    }
+    J.clear(main).append(J.page('Handy-Version verbinden', null,
+      J.card('Einmalig einrichten',
+        h('p', 'Diese Seite liest und speichert dein Journal direkt in deinem privaten GitHub-Repository. Dafür brauchst du einen Zugangsschlüssel, den nur du kennst. Er wird nur auf diesem Gerät gespeichert.'),
+        h('ol.steps',
+          h('li', 'Öffne ', h('a', { href: 'https://github.com/settings/personal-access-tokens/new', target: '_blank', rel: 'noopener' }, 'diese GitHub-Seite'), ' und melde dich an.'),
+          h('li', 'Name: „Journal Handy“. Ablauf (Expiration): so lang wie möglich.'),
+          h('li', 'Repository access: „Only select repositories“ → ', h('b', m.repo), ' auswählen.'),
+          h('li', 'Permissions → Repository permissions → ', h('b', 'Contents'), ' auf „Read and write“.'),
+          h('li', '„Generate token“ tippen, den Schlüssel kopieren und unten einfügen.')),
+        h('div.grid4',
+          J.field('GitHub-Benutzername', J.inp(m, 'owner', { autocapitalize: 'off', autocomplete: 'off' })),
+          J.field('Repository', J.inp(m, 'repo', { autocapitalize: 'off', autocomplete: 'off' })),
+          J.field('Zugangsschlüssel', J.inp(m, 'token', { type: 'password', autocomplete: 'off', placeholder: 'github_pat_…' }))),
+        J.btn('Verbinden', connect, 'primary'), out),
+    ));
+  };
+
   window.addEventListener('hashchange', J.render);
   (async () => {
     const main = document.getElementById('main');
@@ -122,33 +152,4 @@
     if (J.mode === 'server') setInterval(J.sync.refresh, 60000);
   })();
 
-  // Einrichtung der Handy-Version: Zugangsschlüssel eingeben
-  J.renderGithubSetup = (main) => {
-    const m = { owner: (J.gh.cfg && J.gh.cfg.owner) || J.gh.defaultOwner(), repo: (J.gh.cfg && J.gh.cfg.repo) || 'trading-journal', token: '' };
-    const out = h('div');
-    document.getElementById('nav').append(h('div.muted.small.pad', 'Bitte zuerst verbinden.'));
-    async function connect() {
-      m.owner = m.owner.trim(); m.repo = m.repo.trim(); m.token = m.token.trim();
-      if (!m.owner || !m.repo || !m.token) return J.toast('Bitte alle Felder ausfüllen', 'err');
-      J.gh.saveCfg({ owner: m.owner, repo: m.repo, token: m.token, branch: 'main' });
-      out.textContent = 'Verbinde …';
-      try { await J.gh.test(); location.reload(); }
-      catch (e) { J.gh.logout(); out.textContent = 'Das hat nicht geklappt: ' + e.message; }
-    }
-    J.clear(main).append(J.page('Handy-Version verbinden', null,
-      J.card('Einmalig einrichten',
-        h('p', 'Diese Seite liest und speichert dein Journal direkt in deinem privaten GitHub-Repository. Dafür brauchst du einen Zugangsschlüssel, den nur du kennst. Er wird nur auf diesem Gerät gespeichert.'),
-        h('ol.steps',
-          h('li', 'Öffne ', h('a', { href: 'https://github.com/settings/personal-access-tokens/new', target: '_blank', rel: 'noopener' }, 'diese GitHub-Seite'), ' und melde dich an.'),
-          h('li', 'Name: „Journal Handy“. Ablauf (Expiration): so lang wie möglich.'),
-          h('li', 'Repository access: „Only select repositories“ → ', h('b', m.repo), ' auswählen.'),
-          h('li', 'Permissions → Repository permissions → ', h('b', 'Contents'), ' auf „Read and write“.'),
-          h('li', '„Generate token“ tippen, den Schlüssel kopieren und unten einfügen.')),
-        h('div.grid4',
-          J.field('GitHub-Benutzername', J.inp(m, 'owner', { autocapitalize: 'off', autocomplete: 'off' })),
-          J.field('Repository', J.inp(m, 'repo', { autocapitalize: 'off', autocomplete: 'off' })),
-          J.field('Zugangsschlüssel', J.inp(m, 'token', { type: 'password', autocomplete: 'off', placeholder: 'github_pat_…' }))),
-        J.btn('Verbinden', connect, 'primary'), out),
-    ));
-  };
 })(window.J);
