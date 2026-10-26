@@ -108,13 +108,13 @@
       const levelsBox = h('div');
       const drawLevels = () => {
         J.clear(levelsBox).append(
-          h('table.levels-t', h('thead', h('tr', h('th', 'Preis / Zone'), h('th', 'Art'), h('th', 'Status'), h('th', 'Notiz'), h('th'))),
-            h('tbody', (m.levels || []).map((l, i) => h('tr',
-              h('td', J.inp(l, 'price', { placeholder: 'z.B. 2650–2660' })),
-              h('td', J.sel(l, 'kind', LEVEL_KINDS)),
-              h('td', J.sel(l, 'status', LEVEL_STATUS)),
-              h('td', J.inp(l, 'note', { placeholder: 'optional' })),
-              h('td', J.readOnly ? null : h('button.x', { type: 'button', onclick: () => { m.levels.splice(i, 1); drawLevels(); } }, '×')))))),
+          h('div.levels-list', (m.levels || []).map((l, i) => h('div.level-row',
+            h('div.level-top',
+              J.field('Preis / Zone', J.inp(l, 'price', { placeholder: 'z.B. 2650–2660' })),
+              J.field('Art', J.sel(l, 'kind', LEVEL_KINDS)),
+              J.field('Status', J.sel(l, 'status', LEVEL_STATUS)),
+              J.readOnly ? h('span') : h('button.x', { type: 'button', title: 'Entfernen', onclick: () => { m.levels.splice(i, 1); drawLevels(); } }, '×')),
+            J.field('Notiz', J.txt(l, 'note', { rows: 4, placeholder: 'Warum ist diese Schwelle wichtig? Wurde sie gebrochen, wie reagiert der Preis?' }))))),
           J.btn('+ Schwelle / Zone', () => { m.levels.push({ price: '', kind: 'Schwelle', status: 'intakt', note: '' }); drawLevels(); }, 'small ghost'));
       };
       drawLevels();
@@ -135,14 +135,14 @@
             J.field('Lage', J.sel(m, 'situation', SITUATIONS.map(s => [s, s || '–']))),
             J.field('Aktueller Preis', J.inp(m, 'price', { placeholder: 'optional' })),
           ),
-          h('div.grid4',
-            J.field('Nächstes Ziel', J.inp(m, 'targetNext', { placeholder: 'Preis / Zone' })),
-            J.field('Warum dieses Ziel?', J.inp(m, 'targetNextNote', { placeholder: 'z.B. Daily-FVG, EQH' })),
-            J.field('Zwischenziel', J.inp(m, 'targetInter', { placeholder: 'Preis / Zone' })),
-            J.field('Welches Ziel wird angelaufen?', J.inp(m, 'runningTarget', { placeholder: 'z.B. oberes Ziel' })),
+          h('div.grid2',
+            J.field('Nächstes Ziel', J.txt(m, 'targetNext', { rows: 5, placeholder: 'Preis / Zone und kurze Beschreibung' })),
+            J.field('Warum dieses Ziel?', J.txt(m, 'targetNextNote', { rows: 5, placeholder: 'z.B. Daily-FVG, Equal Highs, POC …' })),
+            J.field('Zwischenziel', J.txt(m, 'targetInter', { rows: 5, placeholder: 'Preis / Zone und kurze Beschreibung' })),
+            J.field('Welches Ziel wird angelaufen?', J.txt(m, 'runningTarget', { rows: 5, placeholder: 'z.B. oberes Ziel – oder liegen wir zwischen zwei Zielen?' })),
           ),
-          J.field('Antwort auf die Leitfrage', J.txt(m, 'guideAnswer', { placeholder: 'Richtung, Ziele, Schwellen, wichtiger Bereich …' })),
-          m.timeframe !== 'D' ? J.field('Werden schon theoretische Trades sichtbar?', J.txt(m, 'theoretical', { rows: 2 })) : null,
+          J.field('Antwort auf die Leitfrage', J.txt(m, 'guideAnswer', { rows: 6, placeholder: 'Richtung, Ziele, Schwellen, wichtiger Bereich …' })),
+          m.timeframe !== 'D' ? J.field('Werden schon theoretische Trades sichtbar?', J.txt(m, 'theoretical', { rows: 5 })) : null,
         ),
         J.card('Schwellen, Zonen & Schwellenbrüche', levelsBox),
         J.card(`Checkliste ${tf.name}-Chart`, h('div.checks', tf.elements.map((e, i) => {
@@ -150,7 +150,7 @@
           return J.chk(m.elements, String(i), e);
         }))),
         J.card('Screenshots', J.imagesField(m)),
-        J.card('Fazit / Notizen', J.txt(m, 'summary', { rows: 4 })),
+        J.card('Fazit / Notizen', J.txt(m, 'summary', { rows: 6 })),
       ), J.saveBar(save, isNew ? null : del));
     };
     async function save() {

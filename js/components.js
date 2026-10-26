@@ -27,7 +27,8 @@
   }), label);
   J.txt = (m, key, attrs = {}, onchange) => {
     const t = h('textarea', { rows: 3, ...attrs, value: m[key] || '', oninput: e => { m[key] = e.target.value; autosize(); onchange && onchange(); } });
-    const autosize = () => { t.style.height = 'auto'; t.style.height = Math.max(t.scrollHeight, 60) + 'px'; };
+    // wächst mit dem Text mit, damit immer alles lesbar ist (Rahmenbreite mit einrechnen)
+    const autosize = () => { t.style.height = 'auto'; t.style.height = Math.max(t.scrollHeight + t.offsetHeight - t.clientHeight, 60) + 'px'; };
     requestAnimationFrame(autosize);
     return t;
   };
