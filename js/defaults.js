@@ -96,6 +96,20 @@
       "validDays": 1,
       "guide": "",
       "elements": []
+    },
+    {
+      "id": "5m",
+      "name": "5min",
+      "validDays": 1,
+      "guide": "",
+      "elements": []
+    },
+    {
+      "id": "1m",
+      "name": "1min",
+      "validDays": 1,
+      "guide": "",
+      "elements": []
     }
   ],
   "checklist": [],

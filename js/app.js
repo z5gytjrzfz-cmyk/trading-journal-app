@@ -4,6 +4,7 @@
   const NAV = [
     ['#/kalender', '📅 Kalender'],
     ['#/analysen', '📊 Märkte & Analysen'],
+    ['#/archiv', '📦 Analysen-Archiv'],
     ['#/trades', '💹 Trades'],
     ['#/auswertung', '📈 Auswertung'],
     ['#/review', '📝 Wochen-Review'],
@@ -34,6 +35,7 @@
     try {
       switch (parts[0]) {
         case 'analysen': J.renderAnalysesOverview(main); break;
+        case 'archiv': J.renderArchive(main); break;
         case 'markt': J.renderMarket(main, parts[1]); break;
         case 'analyse': J.renderAnalysis(main, parts[1], params); break;
         case 'trades': J.renderTrades(main); break;

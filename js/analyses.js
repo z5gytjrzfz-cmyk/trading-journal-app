@@ -1,4 +1,4 @@
-// Märkte & Analysen (Daily / 4h / 1h / 15min)
+// Märkte & Analysen (Daily / 4h / 1h / 15min / 5min / 1min) inkl. Archiv
 (function (J) {
   const h = J.h;
   const LEVEL_KINDS = ['Schwelle', 'Support', 'Resistance', 'FVG', 'Liquidität', 'Fib-Zone', 'POC / Volumen', 'Trendline', 'Ziel'];
@@ -19,43 +19,84 @@
   };
   J.latestAnalysis = (market, tf) => J.currentAnalyses(market).find(a => a.timeframe === tf);
 
+  // Archiv: jede Analyse, die durch eine neuere (gleicher Markt + Zeiteinheit) ersetzt wurde. Es wird nichts gelöscht.
+  const byDateDesc = (a, b) => (b.date || '').localeCompare(a.date || '');
+  J.isCurrentAnalysis = a => { const l = J.latestAnalysis(a.market, a.timeframe); return !!l && l.id === a.id; };
+  J.successorOf = a => J.store.analyses
+    .filter(x => x.market === a.market && x.timeframe === a.timeframe && (x.date || '') > (a.date || ''))
+    .sort((x, y) => (x.date || '').localeCompare(y.date || ''))[0];
+  J.archivedAnalyses = market => {
+    const cur = new Set(J.currentAnalyses(market).map(a => a.id));
+    return J.store.analyses.filter(a => (!market || a.market === market) && !cur.has(a.id)).sort(byDateDesc);
+  };
+  const renewLink = a => `#/analyse/neu?market=${a.market}&tf=${a.timeframe}`;
+
   function cell(a, market, tf) {
     if (!a) return h('td.mx-empty', J.link('+ anlegen', `#/analyse/neu?market=${market}&tf=${tf}`, 'muted'));
     return h('td', { class: a.expired ? 'expired' : '' }, h('a.mx', { href: '#/analyse/' + a.id },
       J.biasBadge(a.bias),
       a.targetNext ? h('div.small', '🎯 ', a.targetNext) : null,
       a.situation ? h('div.small.muted', a.situation) : null,
-      h('div.small', { class: a.expired ? 'neg' : 'muted' }, a.expired ? `abgelaufen ${J.fmtShort(a.validUntil)}` : `gültig bis ${J.fmtShort(a.validUntil)}`)));
+      h('div.small', { class: a.expired ? 'neg' : 'muted' }, a.expired ? `abgelaufen ${J.fmtShort(a.validUntil)}` : `gültig bis ${J.fmtShort(a.validUntil)}`)),
+      a.expired ? J.link('↻ erneuern', renewLink(a), 'small renew') : null);
   }
 
   J.renderAnalysesOverview = (main) => {
     const S = J.store.settings;
     const cur = J.currentAnalyses();
-    const recent = [...J.store.analyses].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 30);
-    J.clear(main).append(J.page('Märkte & Analysen', [J.btn('+ Neue Analyse', () => J.go('#/analyse/neu'), 'primary')],
+    const archived = J.archivedAnalyses();
+    J.clear(main).append(J.page('Märkte & Analysen', [
+      J.btn(`📦 Archiv (${archived.length})`, () => J.go('#/archiv'), 'ghost'),
+      J.btn('+ Neue Analyse', () => J.go('#/analyse/neu'), 'primary')],
       J.card('Aktuelle Lage je Markt',
         h('div.scroll', h('table.matrix',
           h('thead', h('tr', h('th', 'Markt'), S.timeframes.map(tf => h('th', tf.name)))),
           h('tbody', S.markets.map(m => h('tr',
             h('th', h('a', { href: '#/markt/' + m.id }, J.marketDot(m.id), m.name)),
             S.timeframes.map(tf => cell(cur.find(a => a.market === m.id && a.timeframe === tf.id), m.id, tf.id)))))))),
-      J.card('Letzte Analysen', analysisTable(recent)),
+      h('p.muted.small', 'Wird eine Analyse erneuert, wandert die alte automatisch ins Archiv – es wird nichts gelöscht.'),
+      J.card('Zuletzt archiviert', analysisTable(archived.slice(0, 10), true),
+        archived.length > 10 ? h('div.center', J.link(`Ganzes Archiv ansehen (${archived.length}) →`, '#/archiv')) : null),
     ));
   };
 
-  function analysisTable(list) {
-    if (!list.length) return h('div.empty', 'Noch keine Analysen.');
-    return h('div.scroll', h('table.list', h('thead', h('tr', ['Datum', 'Markt', 'TF', 'Bias', 'Lage', 'Nächstes Ziel', 'Gültig bis'].map(x => h('th', x)))),
-      h('tbody', list.map(a => h('tr', { class: 'click', onclick: () => J.go('#/analyse/' + a.id) },
-        h('td', J.fmtDate(a.date)), h('td', J.marketDot(a.market), a.market), h('td', J.tf(a.timeframe).name),
-        h('td', J.biasBadge(a.bias)), h('td', a.situation || ''), h('td', a.targetNext || ''),
-        h('td', { class: J.isExpired(a) ? 'neg' : '' }, J.fmtShort(a.validUntil)))))));
+  // Archiv aller ersetzten Analysen, filterbar nach Markt und Zeiteinheit
+  const AP = { market: 'all', tf: 'all' };
+  J.renderArchive = (main) => {
+    const S = J.store.settings;
+    const body = h('div');
+    const draw = () => {
+      const list = J.archivedAnalyses(AP.market === 'all' ? null : AP.market).filter(a => AP.tf === 'all' || a.timeframe === AP.tf);
+      J.clear(body).append(J.card(`${list.length} archivierte Analyse(n)`, analysisTable(list, true)));
+    };
+    J.clear(main).append(J.page('📦 Analysen-Archiv', [
+      h('div.toolbar',
+        J.sel(AP, 'market', [['all', 'Alle Märkte'], ...S.markets.map(m => [m.id, m.name])], draw),
+        J.sel(AP, 'tf', [['all', 'Alle Zeiteinheiten'], ...S.timeframes.map(t => [t.id, t.name])], draw)),
+      J.link('← Aktuelle Analysen', '#/analysen', 'btn ghost')],
+      h('p.muted', 'Hier liegen alle Analysen, die durch eine neuere Analyse desselben Markts und derselben Zeiteinheit ersetzt wurden. Du kannst sie jederzeit öffnen und nachlesen.'),
+      body));
+    draw();
+  };
+
+  function analysisTable(list, archive) {
+    if (!list.length) return h('div.empty', archive ? 'Noch nichts im Archiv.' : 'Noch keine Analysen.');
+    const cols = ['Datum', 'Markt', 'TF', 'Bias', 'Lage', 'Nächstes Ziel', 'Gültig bis', ...(archive ? ['Ersetzt am'] : [])];
+    return h('div.scroll', h('table.list', h('thead', h('tr', cols.map(x => h('th', x)))),
+      h('tbody', list.map(a => {
+        const succ = archive ? J.successorOf(a) : null;
+        return h('tr', { class: 'click', onclick: () => J.go('#/analyse/' + a.id) },
+          h('td', J.fmtDate(a.date)), h('td', J.marketDot(a.market), a.market), h('td', J.tf(a.timeframe).name),
+          h('td', J.biasBadge(a.bias)), h('td', a.situation || ''), h('td.wrap', a.targetNext || ''),
+          h('td', J.fmtShort(a.validUntil)),
+          archive ? h('td', succ ? J.fmtShort(succ.date) : '') : null);
+      }))));
   }
 
   J.renderMarket = (main, id) => {
     const m = J.market(id), S = J.store.settings;
     const cur = J.currentAnalyses(id);
-    const hist = J.store.analyses.filter(a => a.market === id).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    const archived = J.archivedAnalyses(id);
     const trades = J.filterTrades({ market: id });
     const st = J.stats(trades);
     J.clear(main).append(J.page([J.marketDot(id), ' ', m.name], [
@@ -75,9 +116,10 @@
             (a.levels || []).length ? h('ul.levels', a.levels.slice(0, 8).map(l => h('li', h('b', l.price || ''), ` ${l.kind}`, l.status && l.status !== 'intakt' ? h('span.muted', ` · ${l.status}`) : null))) : null,
             (a.images || [])[0] ? h('img.preview', { src: J.api.imgUrl(a.images[0].file), 'data-file': a.images[0].file, onclick: () => J.lightbox(J.api.imgUrl(a.images[0].file)) }) : null,
             J.link('Öffnen →', '#/analyse/' + a.id),
+            a.expired ? J.link('↻ Erneuern (alte kommt ins Archiv)', renewLink(a), 'small renew') : null,
           ] : h('div.muted', 'Noch keine Analyse. ', J.link('Jetzt anlegen', `#/analyse/neu?market=${id}&tf=${tf.id}`)));
       })),
-      J.card('Verlauf der Analysen', analysisTable(hist)),
+      J.card(`📦 Archiv dieses Markts (${archived.length})`, analysisTable(archived, true)),
       J.card('Trades in diesem Markt', J.tradeTable(trades.slice().reverse().slice(0, 30))),
     ));
   };
@@ -102,6 +144,21 @@
     } else a = JSON.parse(JSON.stringify(a));
 
     const m = a;
+    function archivedInfo() {
+      if (isNew) return null;
+      const orig = J.byId(J.store.analyses, m.id);
+      if (!orig) return null;
+      if (!J.isCurrentAnalysis(orig)) {
+        const succ = J.successorOf(orig);
+        return h('div.note.archived', '📦 Diese Analyse ist archiviert.',
+          succ ? h('span', ' Ersetzt durch die Analyse vom ', J.link(J.fmtDate(succ.date), '#/analyse/' + succ.id), '.') : null);
+      }
+      if (J.isExpired(orig)) {
+        return h('div.note.expiredinfo', `⏰ Diese Analyse ist seit ${J.fmtDate(orig.validUntil)} abgelaufen.`,
+          J.readOnly ? null : J.btn('↻ Neue Analyse erstellen (diese kommt ins Archiv)', () => J.go(renewLink(orig)), 'small primary'));
+      }
+      return null;
+    }
     const form = h('div');
     const draw = () => {
       const tf = J.tf(m.timeframe);
@@ -119,7 +176,8 @@
       };
       drawLevels();
       J.clear(form).append(J.lockable(
-        m._prefilled && isNew ? h('div.note', 'ℹ️ Schwellen, Ziele und Bias wurden aus der letzten Analyse übernommen – bitte aktualisieren.') : null,
+        m._prefilled && isNew ? h('div.note', 'ℹ️ Schwellen, Ziele und Bias wurden aus der letzten Analyse übernommen – bitte aktualisieren. Die bisherige Analyse wandert beim Speichern ins Archiv.') : null,
+        archivedInfo(),
         J.card('Grunddaten', h('div.grid4',
           J.field('Markt', J.sel(m, 'market', S.markets.map(x => [x.id, x.name]))),
           J.field('Zeiteinheit', J.sel(m, 'timeframe', S.timeframes.map(x => [x.id, x.name]), () => {

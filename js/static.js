@@ -40,7 +40,8 @@
   function analysisBlock(a) {
     const tf = J.tf(a.timeframe);
     return h('section.card.st-item', { id: 'a-' + a.id },
-      h('h3', `${J.fmtDate(a.date)} · ${J.market(a.market).name} · ${tf.name} `, J.biasBadge(a.bias)),
+      h('h3', `${J.fmtDate(a.date)} · ${J.market(a.market).name} · ${tf.name} `, J.biasBadge(a.bias),
+        J.isCurrentAnalysis(a) ? null : J.badge('📦 archiviert')),
       facts([['Gültig bis', J.fmtDate(a.validUntil)], ['Zur übergeordneten TF', a.relation === 'with' ? 'in Richtung' : a.relation === 'against' ? 'gegen' : null],
         ['Lage', a.situation], ['Nächstes Ziel', a.targetNext ? `${a.targetNext}${a.targetNextNote ? ' (' + a.targetNextNote + ')' : ''}` : null],
         ['Zwischenziel', a.targetInter], ['Angelaufenes Ziel', a.runningTarget], ['Preis', a.price]]),

@@ -24,7 +24,12 @@
 
   function mergeSettings(s) {
     const d = window.J_DEFAULTS;
-    return { ...d, ...s, rules: { ...d.rules, ...((s && s.rules) || {}) } };
+    const merged = { ...d, ...s, rules: { ...d.rules, ...((s && s.rules) || {}) } };
+    // neue Standard-Zeiteinheiten (z.B. 5min, 1min) ergänzen, ohne eigene Anpassungen zu überschreiben
+    const tfs = [...(merged.timeframes || [])];
+    d.timeframes.forEach((t, i) => { if (!tfs.some(x => x.id === t.id)) tfs.splice(Math.min(i, tfs.length), 0, t); });
+    merged.timeframes = tfs;
+    return merged;
   }
   const months = (from, to) => {
     const out = [];
