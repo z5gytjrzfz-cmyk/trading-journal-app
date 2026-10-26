@@ -6,7 +6,11 @@
     h('div.page-head', h('h1', title), h('div.actions', actions || [])), body);
 
   J.card = (title, ...body) => h('section.card', title ? h('h2', title) : null, body);
-  J.field = (label, input, hint) => h('label.field', h('span.lbl', label), input, hint ? h('span.hint', hint) : null);
+  // <label> nur um echte Eingabefelder – um Knopf-Gruppen würde Safari jeden Klick an den ersten Knopf weiterleiten
+  J.field = (label, input, hint) => {
+    const isInput = input instanceof Element && ['INPUT', 'SELECT', 'TEXTAREA'].includes(input.tagName);
+    return h(isInput ? 'label.field' : 'div.field', h('span.lbl', label), input, hint ? h('span.hint', hint) : null);
+  };
   J.row = (...kids) => h('div.row', kids);
   J.btn = (label, onclick, cls) => h('button', { type: 'button', class: 'btn ' + (cls || ''), onclick }, label);
   J.link = (label, hash, cls) => h('a', { href: hash, class: cls || '' }, label);
@@ -34,18 +38,19 @@
 
   // Segment-Auswahl (z.B. Ja / Nein / n.a.)
   J.seg = (m, key, options, onchange) => {
-    const wrap = h('div.seg');
-    const draw = () => {
-      J.clear(wrap);
-      for (const [v, label, cls] of options) {
-        wrap.append(h('button', {
-          type: 'button', class: (m[key] === v ? 'on ' : '') + (cls || ''),
-          onclick: () => { m[key] = m[key] === v ? '' : v; draw(); onchange && onchange(); },
-        }, label));
-      }
-    };
-    draw();
-    return wrap;
+    // Knöpfe werden nur einmal gebaut und beim Klick lediglich umgefärbt (nicht neu gezeichnet)
+    const buttons = options.map(([v, label, cls]) => h('button', {
+      type: 'button', class: cls || '',
+      onclick: e => {
+        e.preventDefault();
+        m[key] = m[key] === v ? '' : v;
+        mark();
+        onchange && onchange();
+      },
+    }, label));
+    const mark = () => buttons.forEach((b, i) => b.classList.toggle('on', m[key] === options[i][0]));
+    mark();
+    return h('div.seg', buttons);
   };
   J.YNN = [['yes', 'Ja', 'y'], ['no', 'Nein', 'n'], ['na', 'n.a.', 'x']];
   J.YNP = [['yes', 'Ja', 'y'], ['partly', 'Teils', 'p'], ['no', 'Nein', 'n']];
