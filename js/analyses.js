@@ -144,6 +144,40 @@
     } else a = JSON.parse(JSON.stringify(a));
 
     const m = a;
+    // Fragen aus dem Dokument einzeln abfragen (aus den Einstellungen der Zeiteinheit)
+    function questionCards(tf, levelsBox) {
+      const bias = () => J.field('Bias / Trend', J.seg(m, 'bias', [['bullish', '▲ Bullish', 'y'], ['neutral', '◆ Neutral', 'x'], ['bearish', '▼ Bearish', 'n']]));
+      const relation = () => m.timeframe !== 'D' ? J.field('Zur übergeordneten Zeiteinheit', J.seg(m, 'relation', [['with', 'in Richtung', 'y'], ['against', 'gegen', 'n']])) : null;
+      const targets = () => h('div.grid2',
+        J.field('Nächstes Ziel', J.txt(m, 'targetNext', { rows: 5, placeholder: 'Preis / Zone und kurze Beschreibung' })),
+        J.field('Warum dieses Ziel?', J.txt(m, 'targetNextNote', { rows: 5, placeholder: 'z.B. Daily-FVG, Equal Highs, POC …' })),
+        J.field('Zwischenziel', J.txt(m, 'targetInter', { rows: 5, placeholder: 'Preis / Zone und kurze Beschreibung' })),
+        J.field('Welches Ziel wird angelaufen?', J.txt(m, 'runningTarget', { rows: 5, placeholder: 'z.B. oberes Ziel – oder liegen wir zwischen zwei Zielen?' })));
+      const situation = () => h('div.grid2',
+        J.field('Lage', J.sel(m, 'situation', SITUATIONS.map(x => [x, x || '–']))),
+        J.field('Aktueller Preis', J.inp(m, 'price', { placeholder: 'optional' })));
+      const legacy = m.guideAnswer ? J.field('Notizen zur Leitfrage (frühere Eingabe)', J.txt(m, 'guideAnswer', { rows: 5 })) : null;
+      const qs = tf.questions || [];
+      m.qa = m.qa || {};
+      if (!qs.length) {
+        // ohne hinterlegte Einzelfragen: bisherige Darstellung
+        return [J.card('Richtung & Ziele', tf.guide ? h('p.guide', '❓ ', tf.guide) : null,
+          h('div.grid2', bias(), relation() || h('div')), situation(), targets(),
+          J.field('Antwort auf die Leitfrage', J.txt(m, 'guideAnswer', { rows: 6 })),
+          m.timeframe !== 'D' ? J.field('Werden schon theoretische Trades sichtbar?', J.txt(m, 'theoretical', { rows: 5 })) : null),
+        J.card('Schwellen, Zonen & Schwellenbrüche', levelsBox)];
+      }
+      const blocks = qs.map((q, i) => {
+        const body = q.kind === 'direction' ? [h('div.grid2', bias(), relation() || h('div')), J.txt(m.qa, q.id, { rows: 5, placeholder: 'Begründung: Trend, Struktur, Schwellen …' })]
+          : q.kind === 'targets' ? [targets()]
+          : q.kind === 'levels' ? [levelsBox]
+          : q.kind === 'area' ? [situation(), J.txt(m.qa, q.id, { rows: 5, placeholder: 'Welcher Bereich? Laufen wir ihn an oder sind wir schon drin?' })]
+          : q.kind === 'theoretical' ? [J.txt(m, 'theoretical', { rows: 5 })]
+          : [J.txt(m.qa, q.id, { rows: 5 })];
+        return h('div.tq', h('h3.tq-q', h('span.tq-n', i + 1), q.text), body);
+      });
+      return [J.card(`Top-Down-Analyse ${tf.name}-Chart`, tf.guide ? h('p.guide', '❓ ', tf.guide) : null, blocks, legacy)];
+    }
     function archivedInfo() {
       if (isNew) return null;
       const orig = J.byId(J.store.analyses, m.id);
@@ -186,23 +220,7 @@
           J.field('Datum', J.inp(m, 'date', { type: 'datetime-local' })),
           J.field('Gültig bis', J.inp(m, 'validUntil', { type: 'date' }), `Standard: ${tf.validDays} Tag(e)`),
         )),
-        J.card('Richtung & Ziele', h('p.guide', '❓ ', tf.guide),
-          h('div.grid4',
-            J.field('Bias / Trend', J.seg(m, 'bias', [['bullish', '▲ Bullish', 'y'], ['neutral', '◆ Neutral', 'x'], ['bearish', '▼ Bearish', 'n']])),
-            m.timeframe !== 'D' ? J.field('Zur übergeordneten TF', J.seg(m, 'relation', [['with', 'in Richtung', 'y'], ['against', 'gegen', 'n']])) : h('div'),
-            J.field('Lage', J.sel(m, 'situation', SITUATIONS.map(s => [s, s || '–']))),
-            J.field('Aktueller Preis', J.inp(m, 'price', { placeholder: 'optional' })),
-          ),
-          h('div.grid2',
-            J.field('Nächstes Ziel', J.txt(m, 'targetNext', { rows: 5, placeholder: 'Preis / Zone und kurze Beschreibung' })),
-            J.field('Warum dieses Ziel?', J.txt(m, 'targetNextNote', { rows: 5, placeholder: 'z.B. Daily-FVG, Equal Highs, POC …' })),
-            J.field('Zwischenziel', J.txt(m, 'targetInter', { rows: 5, placeholder: 'Preis / Zone und kurze Beschreibung' })),
-            J.field('Welches Ziel wird angelaufen?', J.txt(m, 'runningTarget', { rows: 5, placeholder: 'z.B. oberes Ziel – oder liegen wir zwischen zwei Zielen?' })),
-          ),
-          J.field('Antwort auf die Leitfrage', J.txt(m, 'guideAnswer', { rows: 6, placeholder: 'Richtung, Ziele, Schwellen, wichtiger Bereich …' })),
-          m.timeframe !== 'D' ? J.field('Werden schon theoretische Trades sichtbar?', J.txt(m, 'theoretical', { rows: 5 })) : null,
-        ),
-        J.card('Schwellen, Zonen & Schwellenbrüche', levelsBox),
+        ...questionCards(tf, levelsBox),
         J.card(`Checkliste ${tf.name}-Chart`, h('div.checks', tf.elements.map((e, i) => {
           m.elements = m.elements || {};
           return J.chk(m.elements, String(i), e);

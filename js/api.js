@@ -28,6 +28,8 @@
     // neue Standard-Zeiteinheiten (z.B. 5min, 1min) ergänzen, ohne eigene Anpassungen zu überschreiben
     const tfs = [...(merged.timeframes || [])];
     d.timeframes.forEach((t, i) => { if (!tfs.some(x => x.id === t.id)) tfs.splice(Math.min(i, tfs.length), 0, t); });
+    // neue Felder einer Zeiteinheit (z.B. Fragen) ergänzen, ohne eigene Werte zu überschreiben
+    tfs.forEach((t, i) => { const def = d.timeframes.find(x => x.id === t.id); if (def) tfs[i] = { ...def, ...t }; });
     merged.timeframes = tfs;
     return merged;
   }

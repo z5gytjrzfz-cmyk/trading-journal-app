@@ -29,7 +29,8 @@
       facts([['Konto', J.account(t.account).name], ['Ergebnis', c.closed ? `${J.fmtR(c.r)} · ${J.fmtPct(c.pct)} · ${J.fmtUsd(c.usd)}` : 'offen'],
         ['Risiko', `${J.num(c.riskPct, 2)}%`], ['Entry', t.entry], ['Stop-Loss', t.sl], ['Take-Profit', t.tp], ['Exit', t.exit],
         ['Geplantes RRR', c.plannedRR == null ? null : `1:${J.num(c.plannedRR, 1)}`], ['Haltedauer', J.fmtDuration(c.holding)],
-        ['Session', c.session], ['Checkliste', sc.answered ? `${sc.pct}%` : 'nicht ausgefüllt']]),
+        ['Session', c.session], ['Checkliste', sc.answered ? `${sc.pct}%` : 'nicht ausgefüllt'],
+        ...J.ratingSections(S).map(sec => [`Signifikanz ${sec}`, J.RATING_LABEL[((t.rating || {})[sec] || {}).v] || null])]),
       (t.violations || []).length ? h('div.st-viol', '⚠ Regelverstoß: ', t.violations.map(n => `Regel ${n} – ${S.ruleTexts[n - 1]}`).join(' · ')) : h('div.pos.small', '✓ Regelkonform'),
       imgs(t.images),
       h('details', h('summary', 'Signifikanz-Checkliste'), Object.entries(secs).map(([s, qs]) => [h('h4', s), qa(qs, t.checklist)])),
@@ -48,6 +49,7 @@
       (a.levels || []).length ? h('table.list.st-levels', h('thead', h('tr', ['Preis / Zone', 'Art', 'Status', 'Notiz'].map(x => h('th', x)))),
         h('tbody', a.levels.map(l => h('tr', h('td', l.price || ''), h('td', l.kind || ''), h('td', l.status || ''), h('td', l.note || ''))))) : null,
       tf.elements.length ? h('ul.st-checks', tf.elements.map((e, i) => h('li', { class: (a.elements || {})[i] ? 'pos' : 'muted' }, (a.elements || {})[i] ? '✓ ' : '○ ', e))) : null,
+      (tf.questions || []).filter(q => ['direction', 'area', 'text'].includes(q.kind)).map(q => text(q.text, (a.qa || {})[q.id])),
       text('Leitfrage', a.guideAnswer), text('Theoretische Trades', a.theoretical), text('Fazit', a.summary), imgs(a.images));
   }
 
@@ -84,6 +86,13 @@
       reviews.length ? reviews.map(r => h('section.card.st-item',
         h('h3', `KW ${r.id.split('-W')[1]} · ${J.fmtShort(r.from)} – ${J.fmtShort(r.to)}${r.to.slice(0, 4)} `, r.done ? J.badge('✓ erledigt', 'pos') : null,
           r.rating ? J.badge(`Zufriedenheit ${r.rating}/5`) : null),
+        h('table.st-qa', h('tbody', S.ruleTexts.map((rt, i) => {
+          const x = (r.rules || {})[i + 1] || {};
+          return h('tr', h('td', `Regel ${i + 1}: ${rt}`, x.note ? h('div.muted', x.note) : null),
+            h('td.nowrap', x.v === 'kept' ? h('span.pos', '✓ eingehalten') : x.v === 'broken' ? h('span.neg', '✗ gebrochen') : h('span.muted', '–')));
+        }))),
+        h('details', h('summary', 'Ausführung & Emotionen der Woche'), qa(S.executionQuestions, r.execution), h('h4', 'Emotionen'), qa(S.emotionQuestions, r.emotions)),
+        S.reflectionQuestions.map(q => text(q.text, (r.reflection || {})[q.id])),
         S.reviewQuestions.map(q => text(q.text, (r.answers || {})[q.id])))) : h('p.muted', 'Keine Reviews im Zeitraum.'),
     );
     return el.outerHTML;

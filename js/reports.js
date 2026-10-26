@@ -74,6 +74,18 @@
     ));
   };
 
+  // ---------- Gemeinsame Bausteine für Regel- und Review-Fragen ----------
+  const KEPT = [['kept', '✓ Eingehalten', 'y'], ['broken', '✗ Gebrochen', 'n']];
+  const ruleCount = (trades, n) => trades.filter(t => (t.violations || []).includes(n)).length;
+  // Eine Frage mit Auswahl, Auto-Hinweis aus dem Journal und großem Notizfeld
+  function questionBlock(title, text, store, choices, hint, notePlaceholder) {
+    return h('div.rq',
+      h('div.rq-head', title ? h('b', title + ' ') : null, h('span', text)),
+      hint ? h('div', { class: 'rq-hint ' + (hint.cls || '') }, hint.text) : null,
+      h('div.rq-answer', J.seg(store, 'v', choices)),
+      J.txt(store, 'note', { rows: 3, placeholder: notePlaceholder || 'Notiz: Warum? Was ändere ich konkret?' }));
+  }
+
   // ---------- Wochen-Review ----------
   J.renderReview = (main, weekId) => {
     const S = J.store.settings;
@@ -81,12 +93,19 @@
     const { from, to } = J.weekRangeFromId(weekId);
     const existing = J.byId(J.store.reviews, weekId);
     const m = existing ? JSON.parse(JSON.stringify(existing)) : { id: weekId, from, to, answers: {}, done: false, rating: '' };
-    m.answers = m.answers || {};
     const trades = J.filterTrades({ from, to });
     const closed = trades.filter(t => J.calc(t).closed);
-    const errors = J.badAnswers(closed, S.executionQuestions, 'execution').filter(x => x.bad).slice(0, 5);
-    const emos = J.badAnswers(closed, S.emotionQuestions, 'emotions').filter(x => x.bad).slice(0, 5);
-    const viol = J.ruleViolationCounts(trades);
+    m.answers = m.answers || {}; m.rules = m.rules || {}; m.execution = m.execution || {}; m.emotions = m.emotions || {}; m.reflection = m.reflection || {};
+    // Regeln vorschlagen, wie das Journal sie gesehen hat (nur wenn noch nicht beantwortet)
+    S.ruleTexts.forEach((r, i) => {
+      const n = i + 1;
+      m.rules[n] = m.rules[n] || {};
+      if (!m.rules[n].v && n <= 9 && trades.length) m.rules[n].v = ruleCount(trades, n) ? 'broken' : 'kept';
+    });
+    const bad = (qs, field) => Object.fromEntries(J.badAnswers(closed, qs, field).map(x => [x.q.id, x]));
+    const execBad = bad(S.executionQuestions, 'execution'), emoBad = bad(S.emotionQuestions, 'emotions');
+    const statHint = (x, invertWord) => !x ? { text: 'Diese Woche bei keinem Trade beantwortet.', cls: 'muted' }
+      : x.bad ? { text: `Im Journal bei ${x.bad} von ${x.answered} Trades ${invertWord}.`, cls: 'neg' } : { text: `Im Journal bei allen ${x.answered} Trades in Ordnung.`, cls: 'pos' };
     const prev = J.weekId(J.addDays(from, -7)), next = J.weekId(J.addDays(from, 7));
     const past = [...J.store.reviews].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 12);
     async function save() {
@@ -94,38 +113,120 @@
       J.toast('Review gespeichert ✓');
       J.render();
     }
+    let phase = null;
     J.clear(main).append(J.page(`Wochen-Review KW ${weekId.split('-W')[1]} · ${J.fmtShort(from)} – ${J.fmtShort(to)}${to.slice(0, 4)}`,
       [J.btn('‹', () => J.go('#/review/' + prev), 'ghost'), J.btn('›', () => J.go('#/review/' + next), 'ghost')],
+      h('p.muted', 'Regel 10: Jeden Samstag Journal auswerten. Geh jede Regel und jede Frage für die ganze Woche durch – die Hinweise zeigen, was dein Journal dazu sagt.'),
       J.card('Zahlen der Woche', J.summaryTable(from, to)),
-      h('div.two',
-        J.card('Fehler & Emotionen',
-          errors.length ? h('ul.toplist', errors.map(x => h('li', h('b', `${x.bad}×`), ' ', x.q.text))) : h('div.muted', 'Keine Ausführungsfehler markiert.'),
-          emos.length ? h('ul.toplist', emos.map(x => h('li', h('b', `${x.bad}×`), ' ', x.q.text))) : h('div.muted', 'Keine Emotionen markiert.')),
-        J.card('Regelverstöße', viol.length ? h('ul.toplist', viol.map(x => h('li', h('b', `${x.c}×`), ` Regel ${x.n}: ${S.ruleTexts[x.n - 1]}`))) : h('div.pos', '✓ Keine Regelverstöße.'))),
       J.card('Trades der Woche', J.tradeTable(trades.slice().reverse())),
-      J.lockable(J.card('Reflexion der Woche',
-        S.reviewQuestions.map(q => J.field(q.text, J.txt(m.answers, q.id))),
-        h('div.grid4',
-          J.field('Zufriedenheit mit der Woche', J.seg(m, 'rating', [['1', '1'], ['2', '2'], ['3', '3'], ['4', '4'], ['5', '5']])),
-          J.field('Status', J.chk(m, 'done', 'Review erledigt (Regel 10)'))))),
+      J.lockable(
+        J.card('1 · Habe ich meine Regeln eingehalten?', S.ruleTexts.map((r, i) => {
+          const n = i + 1, c = ruleCount(trades, n);
+          const hint = n === 10 ? null : n === 7 || !trades.length ? null
+            : c ? { text: `Laut Journal ${c}× gebrochen diese Woche.`, cls: 'neg' } : { text: 'Laut Journal nicht gebrochen.', cls: 'pos' };
+          return questionBlock(`Regel ${n}`, r, m.rules[n], KEPT, hint, 'Warum habe ich die Regel gebrochen bzw. eingehalten? Was ändere ich?');
+        })),
+        J.card('2 · War meine Ausführung richtig?', S.executionQuestions.map(q => {
+          m.execution[q.id] = m.execution[q.id] || {};
+          return questionBlock(null, q.text, m.execution[q.id], J.YNP, statHint(execBad[q.id], q.invert ? 'mit „Ja“ beantwortet' : 'nicht in Ordnung'));
+        })),
+        J.card('3 · Habe ich meine Emotionen kontrolliert?', S.emotionQuestions.map(q => {
+          m.emotions[q.id] = m.emotions[q.id] || {};
+          const head = q.phase && q.phase !== phase ? h('div.qphase', (phase = q.phase)) : null;
+          return [head, questionBlock(null, q.text, m.emotions[q.id], J.YNP, statHint(emoBad[q.id], 'mit „Ja“ beantwortet'))];
+        })),
+        J.card('4 · Bewertung der Woche', S.reflectionQuestions.map(q => J.field(q.text, J.txt(m.reflection, q.id, { rows: 4 })))),
+        J.card('5 · Ausblick & Feedback', S.reviewQuestions.map(q => J.field(q.text, J.txt(m.answers, q.id, { rows: 4 }))),
+          h('div.grid4',
+            J.field('Zufriedenheit mit der Woche', J.seg(m, 'rating', [['1', '1'], ['2', '2'], ['3', '3'], ['4', '4'], ['5', '5']])),
+            J.field('Status', J.chk(m, 'done', 'Review erledigt (Regel 10)'))))),
       J.saveBar(save),
       past.length ? J.card('Frühere Reviews', h('div.chips', past.map(r => J.link(`KW ${r.id.split('-W')[1]}/${r.id.slice(0, 4)} ${r.done ? '✓' : ''}`, '#/review/' + r.id, 'chip')))) : null,
     ));
   };
 
-  // ---------- Regeln ----------
+  // ---------- Regeln: Regel-Check vor dem Trade + Übersicht ----------
+  const RC = { account: null, market: null, time: '', aplus: false, r3: {}, r4: {}, r5: {} };
   J.renderRules = (main) => {
     const S = J.store.settings;
+    RC.account = RC.account || (S.accounts[1] || S.accounts[0]).id;
+    RC.market = RC.market || S.markets[0].id;
+    RC.time = RC.time || J.nowLocal();
+    const checkBox = h('div');
+    let news = [];
+
+    const undocumented = () => J.store.trades.filter(t => {
+      const c = J.calc(t);
+      const sc = J.checklistScore(t.checklist);
+      return !sc.answered || (c.closed && !Object.values(t.execution || {}).some(x => x && x.v));
+    });
+    const reviewStatus = () => {
+      const today = J.today(), wd = J.parse(today).getDay();
+      const due = wd === 6 || wd === 0 ? J.weekId(today) : J.weekId(J.addDays(today, -7));
+      const rv = J.byId(J.store.reviews, due);
+      return { due, done: !!(rv && rv.done) };
+    };
+
+    const drawCheck = () => {
+      const acc = J.account(RC.account);
+      const auto = J.checkRules({ id: '_check', account: RC.account, market: RC.market, entryTime: RC.time, aplus: RC.aplus, sl: 1, checklist: {} }, news);
+      const byN = Object.fromEntries(auto.map(r => [r.n, r]));
+      const manual = (store, okText, failText) => !store.v ? { status: 'open', detail: 'Bitte beantworten' }
+        : store.v === 'yes' ? { status: 'ok', detail: okText } : { status: 'fail', detail: failText };
+      const undoc = undocumented(), rv = reviewStatus();
+      const rows = S.ruleTexts.map((text, i) => {
+        const n = i + 1;
+        let st, ask = null;
+        if (n === 3) { st = manual(RC.r3, 'Checkliste erfüllt', 'Checkliste unter 70 % – kein Trade'); ask = ['Sind mindestens 70 % der Signifikanz-Checkliste erfüllt?', RC.r3]; }
+        else if (n === 4) { st = manual(RC.r4, 'Stop-Loss steht', 'Ohne Stop-Loss kein Trade'); ask = ['Ist der Stop-Loss vorher definiert – und vergrößere ich ihn niemals?', RC.r4]; }
+        else if (n === 5) { st = manual(RC.r5, 'Risiko passt', 'Risiko zu hoch'); ask = [`Ist das Risiko höchstens ${J.num(acc.riskPct, 2)} % (${acc.name})?`, RC.r5]; }
+        else if (n === 7) st = undoc.length ? { status: 'warn', detail: `${undoc.length} Trade(s) noch nicht vollständig dokumentiert` } : { status: 'ok', detail: 'Alle Trades dokumentiert' };
+        else if (n === 10) st = rv.done ? { status: 'ok', detail: `Review KW ${rv.due.split('-W')[1]} erledigt` } : { status: 'warn', detail: `Review KW ${rv.due.split('-W')[1]} noch offen` };
+        else st = byN[n] ? { status: byN[n].status, detail: byN[n].detail } : { status: 'ok', detail: '' };
+        return { n, text, ...st, ask };
+      });
+      const fails = rows.filter(r => r.status === 'fail'), open = rows.filter(r => r.status === 'open');
+      const verdict = fails.length ? { cls: 'neg', text: `✗ Kein Trade – ${fails.map(r => 'Regel ' + r.n).join(', ')} verletzt.` }
+        : open.length ? { cls: 'warn', text: `Noch ${open.length} Frage(n) offen.` }
+        : { cls: 'pos', text: '✓ Laut deinen Regeln darfst du den Trade eingehen.' };
+      J.clear(checkBox).append(
+        h('ul.rules.rules-check', rows.map(r => h('li', { class: r.status === 'open' ? 'warn' : r.status },
+          h('span.ri', { ok: '✓', warn: '!', fail: '✗', open: '?', na: '·' }[r.status]),
+          h('div.rc-body',
+            h('div', h('b', `Regel ${r.n} `), h('span', r.text)),
+            r.ask ? h('div.rc-ask', h('span', r.ask[0]), J.seg(r.ask[1], 'v', [['yes', 'Ja', 'y'], ['no', 'Nein', 'n']], drawCheck)) : null,
+            h('div.rd', r.detail),
+            r.n === 7 && undoc.length ? h('div.chips', undoc.slice(0, 6).map(t => J.link(`${t.market} ${J.fmtShort(t.entryTime)}`, '#/trade/' + t.id, 'chip'))) : null,
+            r.n === 10 && !rv.done ? J.link('Review öffnen →', '#/review/' + rv.due) : null)))),
+        h('div', { class: 'verdict ' + verdict.cls }, verdict.text),
+        fails.length || open.length ? null : J.btn('Trade erfassen →', () => J.go(`#/trade/neu?market=${RC.market}&account=${RC.account}&time=${encodeURIComponent(RC.time)}&rulesok=1${RC.aplus ? '&aplus=1' : ''}`), 'primary'));
+    };
+    const refresh = async () => { news = await J.dayNews(RC.time.slice(0, 10)); drawCheck(); };
+
     const all = J.ruleViolationCounts(J.store.trades);
-    const m = J.monthRange(J.today());
-    const month = J.ruleViolationCounts(J.filterTrades(m));
+    const month = J.ruleViolationCounts(J.filterTrades(J.monthRange(J.today())));
+    const week = J.ruleViolationCounts(J.filterTrades(J.weekRange(J.today())));
     const cnt = (list, n) => (list.find(x => x.n === n) || { c: 0 }).c;
+    const lastViol = J.store.trades.filter(t => (t.violations || []).length).sort((a, b) => b.entryTime.localeCompare(a.entryTime)).slice(0, 10);
+
     J.clear(main).append(J.page('Kompromisslose Regeln', null,
-      J.card(null, h('table.list', h('thead', h('tr', h('th', '#'), h('th', 'Regel'), h('th', 'Verstöße diesen Monat'), h('th', 'Verstöße gesamt'))),
-        h('tbody', S.ruleTexts.map((r, i) => h('tr', h('td', h('b', i + 1)), h('td', r),
+      J.card('Regel-Check: Darf ich den Trade laut meinen Regeln überhaupt eingehen?',
+        h('p.muted', 'Vor jedem Trade durchgehen. Regel 1, 2, 6, 8 und 9 prüft das Journal automatisch, Regel 3, 4 und 5 beantwortest du.'),
+        J.lockable(h('div.grid4',
+          J.field('Konto', J.sel(RC, 'account', S.accounts.map(a => [a.id, a.name]), drawCheck)),
+          J.field('Markt', J.sel(RC, 'market', S.markets.map(x => [x.id, x.name]), refresh)),
+          J.field('Geplanter Einstieg', J.inp(RC, 'time', { type: 'datetime-local' }, refresh)),
+          J.field('A+ Setup', J.chk(RC, 'aplus', 'Ausnahme für Regel 1 & 2', drawCheck))),
+        checkBox)),
+      J.card('Verstöße je Regel', h('table.list',
+        h('thead', h('tr', h('th', '#'), h('th', 'Regel'), h('th', 'Diese Woche'), h('th', 'Diesen Monat'), h('th', 'Gesamt'))),
+        h('tbody', S.ruleTexts.map((r, i) => h('tr', h('td', h('b', i + 1)), h('td.wrap', r),
+          h('td', { class: cnt(week, i + 1) ? 'neg' : 'pos' }, cnt(week, i + 1)),
           h('td', { class: cnt(month, i + 1) ? 'neg' : 'pos' }, cnt(month, i + 1)), h('td', cnt(all, i + 1))))))),
-      h('p.muted', 'Regel 1–9 werden bei jedem Trade automatisch geprüft. Regel 10 erinnert dich samstags im Kalender an das Wochen-Review.'),
+      lastViol.length ? J.card('Letzte Regelverstöße', h('ul.toplist', lastViol.map(t => h('li',
+        J.link(`${J.fmtDateTime(t.entryTime)} · ${t.market}`, '#/trade/' + t.id), ' – ', t.violations.map(n => 'Regel ' + n).join(', '))))) : null,
     ));
+    refresh();
   };
 
   // ---------- Teilen (Nur-Lesen) ----------

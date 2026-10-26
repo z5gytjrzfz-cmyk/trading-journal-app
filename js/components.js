@@ -54,6 +54,20 @@
     return h('div.seg', buttons);
   };
   J.YNN = [['yes', 'Ja', 'y'], ['no', 'Nein', 'n'], ['na', 'n.a.', 'x']];
+  // Signifikanz-Bewertung je Abschnitt („Trade Bewertung“ im Dokument)
+  J.RATING = [['low', '🔴 Gering', 'n'], ['mid', '🟡 Mittel', 'p'], ['high', '🟢 Hoch', 'y']];
+  J.RATING_LABEL = { low: '🔴 Gering', mid: '🟡 Mittel', high: '🟢 Hoch' };
+  J.suggestRating = p => (p == null ? '–' : p >= 70 ? '🟢 Hoch' : p >= 40 ? '🟡 Mittel' : '🔴 Gering');
+  J.ratingSections = S => [...new Set(S.checklist.map(q => q.section))].filter(sec => !/regel/i.test(sec));
+  // Zusatzfeld einer Checklisten-Frage: Auswahl, wo das Dokument feste Werte vorgibt
+  J.detailInput = (kind, store) => {
+    const opts = /^tf$/i.test(kind) ? J.store.settings.timeframes.map(t => t.name)
+      : /signifikanz/i.test(kind) ? ['🔴 Gering', '🟡 Mittel', '🟢 Hoch']
+      : /trend/i.test(kind) ? ['🟢 Aufwärtstrend', '🔴 Abwärtstrend', '⚪ Seitwärts'] : null;
+    if (!opts) return J.inp(store, 'd', { placeholder: kind, class: 'qd' });
+    const cur = store.d && !opts.includes(store.d) ? [store.d] : [];
+    return J.sel(store, 'd', [['', kind + ' …'], ...cur, ...opts], null, { class: 'qd' });
+  };
   J.YNP = [['yes', 'Ja', 'y'], ['partly', 'Teils', 'p'], ['no', 'Nein', 'n']];
 
   // Bilder: Drag & Drop, Einfügen (Cmd+V) oder Auswählen

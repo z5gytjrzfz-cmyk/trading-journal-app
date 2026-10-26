@@ -73,6 +73,7 @@
       "id": "D",
       "name": "Daily",
       "validDays": 28,
+      "questions": [],
       "guide": "",
       "elements": []
     },
@@ -80,6 +81,7 @@
       "id": "4H",
       "name": "4h",
       "validDays": 7,
+      "questions": [],
       "guide": "",
       "elements": []
     },
@@ -87,6 +89,7 @@
       "id": "1H",
       "name": "1h",
       "validDays": 2,
+      "questions": [],
       "guide": "",
       "elements": []
     },
@@ -94,6 +97,7 @@
       "id": "15m",
       "name": "15min",
       "validDays": 1,
+      "questions": [],
       "guide": "",
       "elements": []
     },
@@ -101,6 +105,7 @@
       "id": "5m",
       "name": "5min",
       "validDays": 1,
+      "questions": [],
       "guide": "",
       "elements": []
     },
@@ -108,6 +113,7 @@
       "id": "1m",
       "name": "1min",
       "validDays": 1,
+      "questions": [],
       "guide": "",
       "elements": []
     }

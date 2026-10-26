@@ -63,7 +63,7 @@
       return [head, h('div.q',
         h('div.qt', q.text, q.invert ? h('span.inv', { title: '„Ja“ ist hier negativ' }, ' ⇄') : null),
         h('div.qa', J.seg(store[q.id], 'v', opts.choices, opts.onchange),
-          q.detail ? J.inp(store[q.id], 'd', { placeholder: q.detail, class: 'qd' }) : null))];
+          q.detail ? J.detailInput(q.detail, store[q.id]) : null))];
     }));
   }
 
@@ -75,14 +75,17 @@
     if (isNew) {
       const day = params.get('day');
       const market = params.get('market') || S.markets[0].id;
-      const acc = S.accounts[S.accounts.length > 1 ? 1 : 0];
-      const entryTime = day && day !== J.today() ? `${day}T09:00` : J.nowLocal();
+      const acc = J.byId(S.accounts, params.get('account')) || S.accounts[S.accounts.length > 1 ? 1 : 0];
+      const entryTime = params.get('time') || (day && day !== J.today() ? `${day}T09:00` : J.nowLocal());
       t = {
         id: J.uid('trd'), account: acc.id, market, direction: 'long', status: 'closed', entryTime, exitTime: '',
         entry: '', sl: '', tp: '', exit: '', riskPct: acc.riskPct, manualR: '',
         checklist: {}, execution: {}, emotions: {}, reflection: {}, images: [], notes: '',
         analysisIds: analysesAt(market, entryTime).map(a => a.id),
+        aplus: params.get('aplus') === '1',
       };
+      // vom Regel-Check: erste Frage der Signifikanz-Checkliste ist damit beantwortet
+      if (params.get('rulesok') === '1' && S.checklist.some(q => q.id === 'c_rules')) t.checklist.c_rules = { v: 'yes' };
     } else t = JSON.parse(JSON.stringify(t));
     const m = t;
     let news = [];
@@ -91,6 +94,7 @@
     const rulesBox = h('div.rules-box');
     const scoreBox = h('div.score');
     const analysesBox = h('div');
+    const ratingBox = h('div');
 
     const update = () => {
       const c = J.calc(m);
@@ -112,6 +116,18 @@
         h('ul.rules', rules.map(r => h('li', { class: r.status },
           h('span.ri', { ok: '✓', warn: '!', fail: '✗', na: '·' }[r.status]),
           h('div', h('b', `Regel ${r.n}`), ' ', h('span.muted', r.text), h('div.rd', r.detail))))));
+    };
+    const drawRating = () => {
+      const sc = J.checklistScore(m.checklist);
+      m.rating = m.rating || {};
+      J.clear(ratingBox).append(h('div',
+        J.ratingSections(S).map(sec => {
+          m.rating[sec] = m.rating[sec] || {};
+          const ss = sc.sections[sec] || {};
+          const p = ss.answered ? ss.pct : null;
+          return h('div.q', h('div.qt', h('b', sec), h('div.small.muted', p == null ? 'Checkliste noch offen' : `Checkliste: ${p}% erfüllt · Vorschlag: ${J.suggestRating(p)}`)),
+            h('div.qa', J.seg(m.rating[sec], 'v', J.RATING)));
+        })));
     };
     const refreshNews = async () => {
       const day = (m.entryTime || '').slice(0, 10);
@@ -161,9 +177,10 @@
           const secs = {};
           S.checklist.forEach(q => (secs[q.section] = secs[q.section] || []).push(q));
           m.checklist = m.checklist || {};
-          return Object.entries(secs).map(([sec, qs]) => h('div.qsec', h('h3', sec), answerList(qs, m.checklist, { choices: J.YNN, onchange: update })));
+          return Object.entries(secs).map(([sec, qs]) => h('div.qsec', h('h3', sec), answerList(qs, m.checklist, { choices: J.YNN, onchange: () => { update(); drawRating(); } })));
         })()),
         J.card('Regel-Wächter', rulesBox)),
+      J.card('Trade-Bewertung · Signifikanz je Abschnitt', ratingBox),
       J.card('Screenshots', J.imagesField(m)),
       J.card('Nachbewertung · War meine Ausführung richtig?', answerList(S.executionQuestions, m.execution = m.execution || {}, { choices: J.YNP, onchange: update })),
       J.card('Nachbewertung · Habe ich meine Emotionen kontrolliert?', answerList(S.emotionQuestions, m.emotions = m.emotions || {}, { choices: J.YNP })),
@@ -187,6 +204,7 @@
     const title = isNew ? 'Neuer Trade' : `${m.market} ${m.direction === 'short' ? 'Short' : 'Long'} · ${J.fmtDate(m.entryTime)}`;
     J.clear(main).append(J.page(title, [J.link('← Trades', '#/trades', 'btn ghost')], form, J.saveBar(save, isNew ? null : del)));
     drawAnalyses();
+    drawRating();
     update();
     refreshNews();
   };
