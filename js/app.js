@@ -121,6 +121,22 @@
     ));
   };
 
+  // Tabellen-Spalten beschriften, damit sie am Handy als Karten ("Spalte: Wert") angezeigt werden können
+  J.labelTables = root => {
+    root.querySelectorAll('table.list, table.matrix').forEach(t => {
+      const heads = [...t.querySelectorAll('thead th')].map(th => th.textContent.trim());
+      t.querySelectorAll('tbody tr').forEach(tr => [...tr.children].forEach((cell, i) => {
+        if (cell.tagName === 'TD' && heads[i] && !cell.dataset.label) cell.dataset.label = heads[i];
+      }));
+    });
+  };
+  let labelPending = false;
+  new MutationObserver(() => {
+    if (labelPending) return;
+    labelPending = true;
+    requestAnimationFrame(() => { labelPending = false; J.labelTables(document.getElementById('main')); });
+  }).observe(document.getElementById('main'), { childList: true, subtree: true });
+
   window.addEventListener('hashchange', J.render);
   (async () => {
     const main = document.getElementById('main');
